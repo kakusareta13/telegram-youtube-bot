@@ -31,7 +31,7 @@ API_ID = int(os.environ.get('API_ID', 29084027))
 API_HASH = os.environ.get('API_HASH', 'd665a3a502fdbfd2a4ff1cf1e0f24fae')
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '8689403465:AAE4i9f1T6Hu71y1zPJ13NW91GihkiL0nVU')
 
-# МНОЖЕСТВО КАНАЛОВ (можно добавлять сколько угодно)
+# МНОЖЕСТВО КАНАЛОВ
 REQUIRED_CHANNELS = [
     {
         "username": "ova713", 
@@ -42,11 +42,10 @@ REQUIRED_CHANNELS = [
 ]
 
 DOWNLOAD_PATH = "downloads"
-MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2 ГБ
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024
 MAX_RETRIES = 3
 RETRY_DELAY = 5
 
-# Создаем папки
 Path(DOWNLOAD_PATH).mkdir(exist_ok=True)
 Path("user_data").mkdir(exist_ok=True)
 
@@ -147,7 +146,6 @@ LANGUAGES = {
     "tg": "🇹🇯 Тоҷикӣ"
 }
 
-# ================ НАСТРОЙКА ЛОГИРОВАНИЯ ================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -159,7 +157,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ================ ОСНОВНОЙ КЛАСС БОТА ================
 class YouTubeBot:
     def __init__(self, api_id, api_hash, bot_token):
         self.api_id = api_id
@@ -171,7 +168,6 @@ class YouTubeBot:
         self.user_cache: Dict[int, Dict] = {}
         
     async def load_user_data(self):
-        """Загрузка данных пользователей из файла"""
         try:
             async with aiofiles.open('user_data/users.json', 'r', encoding='utf-8') as f:
                 content = await f.read()
@@ -183,7 +179,6 @@ class YouTubeBot:
             self.user_cache = {}
     
     async def save_user_data(self):
-        """Сохранение данных пользователей"""
         try:
             async with aiofiles.open('user_data/users.json', 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(self.user_cache, indent=2, ensure_ascii=False))
@@ -191,7 +186,6 @@ class YouTubeBot:
             logger.error(f"Ошибка сохранения данных: {e}")
     
     def is_private_chat(self, event) -> bool:
-        """Проверяет, является ли чат личным (не группой и не каналом)"""
         try:
             if event.is_private:
                 return True
@@ -200,13 +194,11 @@ class YouTubeBot:
             return False
     
     def get_user_language(self, user_id: int) -> str:
-        """Получить язык пользователя"""
         if user_id in self.user_cache:
             return self.user_cache[user_id].get('language', 'ru')
         return 'ru'
     
     def get_text(self, user_id: int, key: str, **kwargs) -> str:
-        """Получить текст на языке пользователя"""
         lang = self.get_user_language(user_id)
         text = TRANSLATIONS.get(lang, TRANSLATIONS['ru']).get(key, TRANSLATIONS['ru'][key])
         if kwargs:
@@ -214,14 +206,12 @@ class YouTubeBot:
         return text
     
     async def set_user_language(self, user_id: int, language: str):
-        """Установить язык пользователя"""
         if user_id not in self.user_cache:
             self.user_cache[user_id] = {}
         self.user_cache[user_id]['language'] = language
         await self.save_user_data()
     
     async def start(self):
-        """Запуск бота с автоматическим переподключением"""
         max_retries = 10
         retry_delay = 10
         
@@ -229,23 +219,18 @@ class YouTubeBot:
             try:
                 await self.load_user_data()
                 self.client = TelegramClient('bot_session', self.api_id, self.api_hash)
-                
                 self.client.flood_sleep_threshold = 60
-                self.client.session.set_dc(2, '149.154.167.51', 443)
-                
                 await self.client.start(bot_token=self.bot_token)
                 await self.register_handlers()
                 
                 logger.info("="*50)
-                logger.info("🚀 ЗАПУСК БОТА (MTProto - до 2 ГБ)")
+                logger.info("🚀 ЗАПУСК БОТА")
                 logger.info("="*50)
                 
                 print("="*50)
-                print("🤖 YouTube Downloader Bot v3.0 (Multi-Language)")
+                print("🤖 YouTube Downloader Bot")
                 print("="*50)
                 print(f"✅ Бот запущен")
-                print(f"📢 Обязательные каналы: {len([c for c in REQUIRED_CHANNELS if c.get('required', True)])}")
-                print(f"🌐 Языки: Русский, English, Тоҷикӣ")
                 print("="*50)
                 
                 await self.client.run_until_disconnected()
@@ -259,7 +244,6 @@ class YouTubeBot:
                     raise
     
     async def register_handlers(self):
-        """Регистрация обработчиков"""
         
         @self.client.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
@@ -283,13 +267,13 @@ class YouTubeBot:
         async def audio_handler(event):
             if not self.is_private_chat(event):
                 return
-            await self.handle_format_command(event, 'audio', 'best')
+            await self.handle_format_command(event, 'audio')
         
         @self.client.on(events.NewMessage(pattern='/video'))
         async def video_handler(event):
             if not self.is_private_chat(event):
                 return
-            await self.handle_format_command(event, 'video', '720')
+            await self.handle_format_command(event, 'video')
         
         @self.client.on(events.NewMessage(pattern='/check'))
         async def check_handler(event):
@@ -310,7 +294,6 @@ class YouTubeBot:
             await self.handle_callback(event)
     
     async def check_subscription(self, user_id: int) -> Tuple[bool, List[Dict]]:
-        """Проверяет подписку на все каналы/группы"""
         if not REQUIRED_CHANNELS:
             return True, []
         
@@ -323,22 +306,12 @@ class YouTubeBot:
             username = channel["username"]
             try:
                 entity = await self.client.get_entity(username)
-                
                 is_member = False
-                
                 try:
-                    participant = await self.client.get_participant(entity, user_id)
-                    if participant:
-                        is_member = True
-                        logger.info(f"✅ Пользователь {user_id} подписан на {username}")
+                    await self.client.get_permissions(entity, user_id)
+                    is_member = True
                 except:
-                    try:
-                        permissions = await self.client.get_permissions(entity, user_id)
-                        if permissions:
-                            is_member = True
-                            logger.info(f"✅ Пользователь {user_id} подписан на {username}")
-                    except:
-                        pass
+                    pass
                 
                 if not is_member:
                     not_subscribed.append(channel)
@@ -354,25 +327,17 @@ class YouTubeBot:
         return all_subscribed, not_subscribed
     
     def get_subscription_buttons(self, user_id: int, not_subscribed: List[Dict] = None) -> List:
-        """Создает кнопки для подписки"""
         channels = not_subscribed if not_subscribed else [ch for ch in REQUIRED_CHANNELS if ch.get('required', True)]
-        
         buttons = []
-        
         for ch in channels:
             buttons.append([Button.url(f"📢 {ch['name']}", ch['invite_link'])])
-        
         buttons.append([Button.inline(self.get_text(user_id, "check"), b"check")])
-        
         return buttons
     
     async def require_subscription(self, event, user_id: int) -> bool:
-        """Проверяет подписку и возвращает True если все ок"""
         all_subscribed, not_subscribed = await self.check_subscription(user_id)
-        
         if not all_subscribed:
             buttons = self.get_subscription_buttons(user_id, not_subscribed)
-            
             await event.reply(
                 self.get_text(user_id, "not_subscribed"),
                 parse_mode='markdown',
@@ -383,7 +348,6 @@ class YouTubeBot:
         return True
     
     async def start_command(self, event: Message):
-        """/start"""
         user_id = event.sender_id
         user_name = event.sender.first_name or "Пользователь"
         
@@ -407,7 +371,6 @@ class YouTubeBot:
             )
         else:
             buttons = self.get_subscription_buttons(user_id, not_subscribed)
-            
             await event.reply(
                 self.get_text(user_id, "not_subscribed"),
                 parse_mode='markdown',
@@ -416,13 +379,11 @@ class YouTubeBot:
             )
     
     async def language_command(self, event: Message):
-        """/lang - Выбор языка"""
         user_id = event.sender_id
         
         buttons = []
         for lang_code, lang_name in LANGUAGES.items():
             buttons.append([Button.inline(lang_name, f"lang_{lang_code}")])
-        
         buttons.append([Button.inline("⏩ Пропустить / Skip / Гузаштан", b"lang_skip")])
         
         await event.reply(
@@ -432,7 +393,6 @@ class YouTubeBot:
         )
     
     async def help_command(self, event: Message):
-        """/help"""
         user_id = event.sender_id
         
         if not await self.require_subscription(event, user_id):
@@ -445,7 +405,6 @@ class YouTubeBot:
         )
     
     async def check_subscription_command(self, event: Message):
-        """/check - Проверка подписки"""
         user_id = event.sender_id
         user_name = event.sender.first_name or "Пользователь"
         
@@ -458,7 +417,6 @@ class YouTubeBot:
             )
         else:
             buttons = self.get_subscription_buttons(user_id, not_subscribed)
-            
             await event.reply(
                 self.get_text(user_id, "subscription_failed"),
                 parse_mode='markdown',
@@ -467,7 +425,6 @@ class YouTubeBot:
             )
     
     async def handle_url(self, event: Message):
-        """Ссылки на YouTube"""
         user_id = event.sender_id
         text = event.message.text.strip()
         
@@ -498,8 +455,7 @@ class YouTubeBot:
             buttons=buttons
         )
     
-    async def handle_format_command(self, event: Message, format_type: str, quality: str):
-        """Выбор формата"""
+    async def handle_format_command(self, event: Message, format_type: str):
         user_id = event.sender_id
         
         if user_id in self.downloading_users:
@@ -522,10 +478,9 @@ class YouTubeBot:
             )
             return
         
-        await self.process_download(event, url, format_type, quality)
+        await self.process_download(event, url, format_type)
     
     async def handle_callback(self, event):
-        """Обработка нажатий на инлайн-кнопки"""
         user_id = event.sender_id
         data = event.data.decode('utf-8')
         
@@ -551,18 +506,9 @@ class YouTubeBot:
         if not all_subscribed:
             buttons = self.get_subscription_buttons(user_id, not_subscribed)
             text = self.get_text(user_id, "not_subscribed")
-            
             await event.answer(self.get_text(user_id, "subscription_required"), alert=True)
-            
             try:
-                current_text = event.message.text
-                if current_text != text:
-                    await event.edit(
-                        text,
-                        parse_mode='markdown',
-                        buttons=buttons,
-                        link_preview=False
-                    )
+                await event.edit(text, parse_mode='markdown', buttons=buttons, link_preview=False)
             except Exception as e:
                 if "MessageNotModifiedError" not in str(e):
                     logger.error(f"Ошибка при редактировании: {e}")
@@ -570,23 +516,15 @@ class YouTubeBot:
         
         if data == "check":
             await event.answer(self.get_text(user_id, "subscription_checking"))
-            
             all_subscribed, not_subscribed = await self.check_subscription(user_id)
-            
             if all_subscribed:
                 text = self.get_text(user_id, "subscription_confirmed")
                 buttons = [[Button.url(self.get_text(user_id, "our_channel"), "https://t.me/ova713")]]
             else:
                 text = self.get_text(user_id, "not_subscribed")
                 buttons = self.get_subscription_buttons(user_id, not_subscribed)
-            
             try:
-                await event.edit(
-                    text,
-                    parse_mode='markdown',
-                    buttons=buttons,
-                    link_preview=False
-                )
+                await event.edit(text, parse_mode='markdown', buttons=buttons, link_preview=False)
             except Exception as e:
                 if "MessageNotModifiedError" not in str(e):
                     logger.error(f"Ошибка при редактировании: {e}")
@@ -596,7 +534,7 @@ class YouTubeBot:
             user_data = self.user_data.get(user_id, {})
             url = user_data.get('url')
             if url:
-                await self.process_download_from_callback(event, url, 'audio', 'best')
+                await self.process_download_from_callback(event, url, 'audio')
             else:
                 await event.answer(self.get_text(user_id, "no_url"), alert=True)
                 
@@ -605,12 +543,11 @@ class YouTubeBot:
             user_data = self.user_data.get(user_id, {})
             url = user_data.get('url')
             if url:
-                await self.process_download_from_callback(event, url, 'video', '720')
+                await self.process_download_from_callback(event, url, 'video')
             else:
                 await event.answer(self.get_text(user_id, "no_url"), alert=True)
     
-    async def process_download_from_callback(self, event, url: str, format_type: str, quality: str):
-        """Обработка скачивания из callback"""
+    async def process_download_from_callback(self, event, url: str, format_type: str):
         user_id = event.sender_id
         
         if user_id in self.downloading_users:
@@ -618,34 +555,23 @@ class YouTubeBot:
             return
         
         format_name = self.get_text(user_id, "audio") if format_type == 'audio' else self.get_text(user_id, "video")
-        
         status_msg = await event.respond(
             self.get_text(user_id, "downloading", format=format_name),
             parse_mode='markdown'
         )
         
         try:
-            result = await self.download_video(url, format_type, quality)
+            result = await self.download_video(url, format_type)
             
             if result[0] and os.path.exists(result[0]):
                 file_path, title = result
-                
                 me = await self.client.get_me()
                 caption = f"🎬 **{title[:100]}**\n\n📥 @{me.username}"
-                
-                await self.client.send_file(
-                    event.chat_id,
-                    file_path,
-                    caption=caption,
-                    supports_streaming=True
-                )
-                
+                await self.client.send_file(event.chat_id, file_path, caption=caption, supports_streaming=True)
                 os.remove(file_path)
                 await status_msg.delete()
-                
                 if user_id in self.user_data:
                     del self.user_data[user_id]
-                
             else:
                 await status_msg.edit(
                     self.get_text(user_id, "download_error", error=result[1][:200]),
@@ -661,10 +587,7 @@ class YouTubeBot:
             logger.error(f"Ошибка: {e}")
             error_text = str(e)
             if "User is blocked" in error_text:
-                await status_msg.edit(
-                    self.get_text(user_id, "user_blocked"),
-                    parse_mode='markdown'
-                )
+                await status_msg.edit(self.get_text(user_id, "user_blocked"), parse_mode='markdown')
             else:
                 await status_msg.edit(
                     self.get_text(user_id, "download_error", error=error_text[:200]),
@@ -673,8 +596,7 @@ class YouTubeBot:
         finally:
             self.downloading_users.discard(user_id)
     
-    def get_ydl_opts(self, format_type='audio', quality='best'):
-        """Опции yt-dlp"""
+    def get_ydl_opts(self, format_type='video'):
         base_opts = {
             'outtmpl': os.path.join(DOWNLOAD_PATH, '%(title)s.%(ext)s'),
             'restrictfilenames': True,
@@ -690,9 +612,6 @@ class YouTubeBot:
             'ignoreerrors': True,
             'nooverwrites': True,
             'continuedl': True,
-            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
-            'geo_bypass': True,
-            'geo_bypass_country': 'US',
         }
         
         if format_type == 'audio':
@@ -705,19 +624,17 @@ class YouTubeBot:
                 }],
             })
         else:
-            base_opts['format'] = 'best[height<=1080]'
+            base_opts['format'] = 'best[height<=720]'
         
         return base_opts
     
-    async def download_video(self, url: str, format_type: str, quality: str) -> tuple:
-        """Скачивание видео"""
-        ydl_opts = self.get_ydl_opts(format_type, quality)
+    async def download_video(self, url: str, format_type: str) -> tuple:
+        ydl_opts = self.get_ydl_opts(format_type)
         loop = asyncio.get_event_loop()
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 logger.info(f"Получаю информацию: {url}")
-                
                 info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
                 
                 if not info:
@@ -727,10 +644,9 @@ class YouTubeBot:
                 duration = info.get('duration', 0)
                 
                 if 'entries' in info:
-                    return None, "Плейлисты не поддерживаются. Отправь отдельное видео."
+                    return None, "Плейлисты не поддерживаются"
                 
-                logger.info(f"Скачиваю: {title} ({duration//60}:{duration%60:02d})")
-                
+                logger.info(f"Скачиваю: {title}")
                 filename = await loop.run_in_executor(None, lambda: ydl.prepare_filename(info))
                 
                 if format_type == 'audio':
@@ -747,47 +663,34 @@ class YouTubeBot:
                     if files:
                         latest = max(files, key=os.path.getctime)
                         return str(latest), title
-                    else:
-                        return None, "Файл не найден"
+                    return None, "Файл не найден"
                         
         except Exception as e:
             logger.error(f"Ошибка скачивания: {e}")
             return None, str(e)
     
-    async def process_download(self, event: Message, url: str, format_type: str, quality: str):
-        """Отправка файла"""
+    async def process_download(self, event: Message, url: str, format_type: str):
         user_id = event.sender_id
         self.downloading_users.add(user_id)
         
         format_name = self.get_text(user_id, "audio") if format_type == 'audio' else self.get_text(user_id, "video")
-        
         status_msg = await event.reply(
             self.get_text(user_id, "downloading", format=format_name),
             parse_mode='markdown'
         )
         
         try:
-            result = await self.download_video(url, format_type, quality)
+            result = await self.download_video(url, format_type)
             
             if result[0] and os.path.exists(result[0]):
                 file_path, title = result
-                
                 me = await self.client.get_me()
                 caption = f"🎬 **{title[:100]}**\n\n📥 @{me.username}"
-                
-                await self.client.send_file(
-                    event.chat_id,
-                    file_path,
-                    caption=caption,
-                    supports_streaming=True
-                )
-                
+                await self.client.send_file(event.chat_id, file_path, caption=caption, supports_streaming=True)
                 os.remove(file_path)
                 await status_msg.delete()
-                
                 if user_id in self.user_data:
                     del self.user_data[user_id]
-                
             else:
                 await status_msg.edit(
                     self.get_text(user_id, "download_error", error=result[1][:200]),
@@ -803,10 +706,7 @@ class YouTubeBot:
             logger.error(f"Ошибка: {e}")
             error_text = str(e)
             if "User is blocked" in error_text:
-                await status_msg.edit(
-                    self.get_text(user_id, "user_blocked"),
-                    parse_mode='markdown'
-                )
+                await status_msg.edit(self.get_text(user_id, "user_blocked"), parse_mode='markdown')
             else:
                 await status_msg.edit(
                     self.get_text(user_id, "download_error", error=error_text[:200]),
@@ -816,17 +716,14 @@ class YouTubeBot:
             self.downloading_users.discard(user_id)
 
 
-# ================ ЗАПУСК ================
 bot_instance = None
 
 async def main():
-    """Главная функция"""
     global bot_instance
     bot_instance = YouTubeBot(API_ID, API_HASH, BOT_TOKEN)
     await bot_instance.start()
 
 def run_bot():
-    """Запуск бота в отдельном потоке"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -836,6 +733,5 @@ def run_bot():
     finally:
         loop.close()
 
-# ЗАПУСКАЕМ БОТА ПРИ ЗАГРУЗКЕ МОДУЛЯ
 bot_thread = threading.Thread(target=run_bot, daemon=True)
 bot_thread.start()
