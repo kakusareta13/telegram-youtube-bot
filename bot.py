@@ -883,51 +883,28 @@ class YouTubeBot:
 
 
 # ================ ЗАПУСК ================
+# Глобальная переменная для бота
+bot_instance = None
+
 async def main():
     """Главная функция"""
-    bot = YouTubeBot(API_ID, API_HASH, BOT_TOKEN)
-    await bot.start()
+    global bot_instance
+    bot_instance = YouTubeBot(API_ID, API_HASH, BOT_TOKEN)
+    await bot_instance.start()
 
-
-if __name__ == '__main__':
-    # Запускаем веб-сервер в отдельном потоке
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
-    web_thread.start()
-    
-    # Глобальная переменная для бота
-    bot_instance = None
-    
-    def graceful_shutdown(signum, frame):
-        """Корректное завершение работы"""
-        logger.info("Получен сигнал остановки, завершаем работу...")
-        
-        # Создаем новый event loop для отключения
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            if bot_instance and bot_instance.client:
-                loop.run_until_complete(bot_instance.client.disconnect())
-                logger.info("Соединение с Telegram закрыто")
-        except Exception as e:
-            logger.error(f"Ошибка при отключении: {e}")
-        finally:
-            loop.close()
-        
-        logger.info("Бот остановлен")
-        sys.exit(0)
-    
-    # Назначаем обработчики сигналов
-    signal.signal(signal.SIGINT, graceful_shutdown)
-    signal.signal(signal.SIGTERM, graceful_shutdown)
-    
-    # Создаем и запускаем бота
+def run_bot():
+    """Запуск бота в отдельном потоке"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        bot_instance = YouTubeBot(API_ID, API_HASH, BOT_TOKEN)
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен по Ctrl+C")
-        print("\n👋 Бот остановлен")
+        loop.run_until_complete(main())
     except Exception as e:
-        logger.error(f"Необработанная ошибка: {e}")
-        print(f"\n❌ Ошибка: {e}")
+        logger.error(f"Ошибка в потоке бота: {e}")
+    finally:
+        loop.close()
+
+# ЗАПУСКАЕМ БОТА ПРИ ЗАГРУЗКЕ МОДУЛЯ
+bot_thread = threading.Thread(target=run_bot, daemon=True)
+bot_thread.start()
+
+# Flask приложение уже определено выше в начале файла
