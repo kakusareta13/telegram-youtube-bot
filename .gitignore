@@ -1,0 +1,5 @@
+downloads/ 
+user_data/ 
+*.log 
+bot_session.session 
+__pycache__/ 
