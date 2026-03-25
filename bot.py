@@ -39,12 +39,6 @@ REQUIRED_CHANNELS = [
         "invite_link": "https://t.me/ova713",
         "required": True
     },
-    #{
-    #    "username": "vpiska_mak", 
-    #    "name": "Канал 2", 
-    #    "invite_link": "https://t.me/vpiska_mak",
-    #    "required": True
-    #},
 ]
 
 DOWNLOAD_PATH = "downloads"
@@ -199,10 +193,8 @@ class YouTubeBot:
     def is_private_chat(self, event) -> bool:
         """Проверяет, является ли чат личным (не группой и не каналом)"""
         try:
-            # Если это личный чат с ботом
             if event.is_private:
                 return True
-            # Если это группа или канал - игнорируем
             return False
         except:
             return False
@@ -238,9 +230,8 @@ class YouTubeBot:
                 await self.load_user_data()
                 self.client = TelegramClient('bot_session', self.api_id, self.api_hash)
                 
-                # Настройка таймаутов
                 self.client.flood_sleep_threshold = 60
-                self.client.session.set_dc(2, '149.154.167.51', 443)  # DC для MTProto
+                self.client.session.set_dc(2, '149.154.167.51', 443)
                 
                 await self.client.start(bot_token=self.bot_token)
                 await self.register_handlers()
@@ -258,7 +249,7 @@ class YouTubeBot:
                 print("="*50)
                 
                 await self.client.run_until_disconnected()
-                break  # Успешный запуск
+                break
                 
             except Exception as e:
                 logger.error(f"Ошибка запуска (попытка {attempt+1}/{max_retries}): {e}")
@@ -319,7 +310,7 @@ class YouTubeBot:
             await self.handle_callback(event)
     
     async def check_subscription(self, user_id: int) -> Tuple[bool, List[Dict]]:
-        """Проверяет подписку на все каналы/группы - БЕЗ КЭША! Всегда свежая проверка"""
+        """Проверяет подписку на все каналы/группы"""
         if not REQUIRED_CHANNELS:
             return True, []
         
@@ -336,35 +327,18 @@ class YouTubeBot:
                 is_member = False
                 
                 try:
-                    # Метод 1: Пробуем получить участника напрямую (работает для групп)
                     participant = await self.client.get_participant(entity, user_id)
                     if participant:
                         is_member = True
-                        logger.info(f"✅ Пользователь {user_id} подписан на {username} (get_participant)")
-                except Exception as e1:
-                    logger.debug(f"get_participant не сработал: {e1}")
-                    
+                        logger.info(f"✅ Пользователь {user_id} подписан на {username}")
+                except:
                     try:
-                        # Метод 2: Пробуем через get_permissions (работает для каналов)
                         permissions = await self.client.get_permissions(entity, user_id)
                         if permissions:
-                            if hasattr(permissions, 'is_member'):
-                                is_member = permissions.is_member
-                            else:
-                                is_member = True
-                            logger.info(f"✅ Пользователь {user_id} подписан на {username} (get_permissions)")
-                    except Exception as e2:
-                        logger.debug(f"get_permissions не сработал: {e2}")
-                        
-                        try:
-                            # Метод 3: Итерируем участников (работает если бот может видеть список)
-                            async for participant in self.client.iter_participants(entity, limit=2000):
-                                if participant.id == user_id:
-                                    is_member = True
-                                    logger.info(f"✅ Пользователь {user_id} подписан на {username} (iter_participants)")
-                                    break
-                        except Exception as e3:
-                            logger.debug(f"iter_participants не сработал: {e3}")
+                            is_member = True
+                            logger.info(f"✅ Пользователь {user_id} подписан на {username}")
+                    except:
+                        pass
                 
                 if not is_member:
                     not_subscribed.append(channel)
@@ -372,16 +346,6 @@ class YouTubeBot:
                 else:
                     logger.info(f"✅ Пользователь {user_id} ПОДПИСАН на {username}")
                         
-            except FloodWaitError as e:
-                logger.warning(f"Flood wait на {username}: {e.seconds} секунд")
-                await asyncio.sleep(e.seconds)
-                return await self.check_subscription(user_id)
-            except ChannelPrivateError:
-                logger.error(f"❌ Нет доступа к {username} (бот не добавлен или канал приватный)")
-                not_subscribed.append(channel)
-            except UsernameNotOccupiedError:
-                logger.error(f"❌ Канал/группа {username} не найден")
-                not_subscribed.append(channel)
             except Exception as e:
                 logger.error(f"❌ Ошибка проверки {username}: {e}")
                 not_subscribed.append(channel)
@@ -390,16 +354,14 @@ class YouTubeBot:
         return all_subscribed, not_subscribed
     
     def get_subscription_buttons(self, user_id: int, not_subscribed: List[Dict] = None) -> List:
-        """Создает кнопки для подписки: сначала каналы, потом кнопка проверки"""
+        """Создает кнопки для подписки"""
         channels = not_subscribed if not_subscribed else [ch for ch in REQUIRED_CHANNELS if ch.get('required', True)]
         
         buttons = []
         
-        # Добавляем кнопки для каждого канала
         for ch in channels:
             buttons.append([Button.url(f"📢 {ch['name']}", ch['invite_link'])])
         
-        # Добавляем кнопку проверки
         buttons.append([Button.inline(self.get_text(user_id, "check"), b"check")])
         
         return buttons
@@ -420,13 +382,11 @@ class YouTubeBot:
             return False
         return True
     
-    # ================ КОМАНДЫ ================
     async def start_command(self, event: Message):
         """/start"""
         user_id = event.sender_id
         user_name = event.sender.first_name or "Пользователь"
         
-        # Проверяем, выбран ли язык
         if user_id not in self.user_cache or 'language' not in self.user_cache[user_id]:
             await self.language_command(event)
             return
@@ -463,7 +423,6 @@ class YouTubeBot:
         for lang_code, lang_name in LANGUAGES.items():
             buttons.append([Button.inline(lang_name, f"lang_{lang_code}")])
         
-        # Добавляем кнопку "Пропустить" для русскоязычных
         buttons.append([Button.inline("⏩ Пропустить / Skip / Гузаштан", b"lang_skip")])
         
         await event.reply(
@@ -507,17 +466,14 @@ class YouTubeBot:
                 link_preview=False
             )
     
-    # ================ ОБРАБОТЧИК URL ================
     async def handle_url(self, event: Message):
         """Ссылки на YouTube"""
         user_id = event.sender_id
         text = event.message.text.strip()
         
-        # Пропускаем команды
         if text.startswith('/'):
             return
         
-        # Проверяем, выбран ли язык
         if user_id not in self.user_cache or 'language' not in self.user_cache[user_id]:
             await self.language_command(event)
             return
@@ -525,12 +481,10 @@ class YouTubeBot:
         if not await self.require_subscription(event, user_id):
             return
         
-        # Проверяем YouTube ссылку
         youtube_domains = ['youtube.com', 'youtu.be', 'm.youtube.com', 'www.youtube.com']
         if not any(domain in text for domain in youtube_domains):
             return
         
-        # Сохраняем URL
         self.user_data[user_id] = {'url': text, 'timestamp': datetime.now().isoformat()}
         
         buttons = [
@@ -544,7 +498,6 @@ class YouTubeBot:
             buttons=buttons
         )
     
-    # ================ ОБРАБОТЧИК ФОРМАТОВ ================
     async def handle_format_command(self, event: Message, format_type: str, quality: str):
         """Выбор формата"""
         user_id = event.sender_id
@@ -559,7 +512,6 @@ class YouTubeBot:
         if not await self.require_subscription(event, user_id):
             return
         
-        # Получаем URL
         user_data = self.user_data.get(user_id, {})
         url = user_data.get('url')
         
@@ -572,7 +524,6 @@ class YouTubeBot:
         
         await self.process_download(event, url, format_type, quality)
     
-    # ================ ОБРАБОТЧИК CALLBACK ================
     async def handle_callback(self, event):
         """Обработка нажатий на инлайн-кнопки"""
         user_id = event.sender_id
@@ -580,7 +531,6 @@ class YouTubeBot:
         
         logger.info(f"Callback от {user_id}: {data}")
         
-        # Обработка выбора языка
         if data.startswith('lang_'):
             lang_code = data.replace('lang_', '')
             if lang_code in LANGUAGES:
@@ -592,12 +542,10 @@ class YouTubeBot:
                 await self.start_command(event)
             return
         
-        # Проверяем, выбран ли язык
         if user_id not in self.user_cache or 'language' not in self.user_cache[user_id]:
             await self.language_command(event)
             return
         
-        # Проверяем подписку (всегда свежая проверка)
         all_subscribed, not_subscribed = await self.check_subscription(user_id)
         
         if not all_subscribed:
@@ -620,11 +568,9 @@ class YouTubeBot:
                     logger.error(f"Ошибка при редактировании: {e}")
             return
         
-        # Обрабатываем разные кнопки
         if data == "check":
             await event.answer(self.get_text(user_id, "subscription_checking"))
             
-            # Повторно проверяем подписку
             all_subscribed, not_subscribed = await self.check_subscription(user_id)
             
             if all_subscribed:
@@ -662,17 +608,6 @@ class YouTubeBot:
                 await self.process_download_from_callback(event, url, 'video', '720')
             else:
                 await event.answer(self.get_text(user_id, "no_url"), alert=True)
-                
-        elif data == "start_download":
-            await event.answer(self.get_text(user_id, "start_download"))
-            try:
-                await event.edit(
-                    self.get_text(user_id, "select_format"),
-                    parse_mode='markdown'
-                )
-            except Exception as e:
-                if "MessageNotModifiedError" not in str(e):
-                    logger.error(f"Ошибка при редактировании: {e}")
     
     async def process_download_from_callback(self, event, url: str, format_type: str, quality: str):
         """Обработка скачивания из callback"""
@@ -684,7 +619,6 @@ class YouTubeBot:
         
         format_name = self.get_text(user_id, "audio") if format_type == 'audio' else self.get_text(user_id, "video")
         
-        # Одно сообщение о начале загрузки
         status_msg = await event.respond(
             self.get_text(user_id, "downloading", format=format_name),
             parse_mode='markdown'
@@ -739,7 +673,6 @@ class YouTubeBot:
         finally:
             self.downloading_users.discard(user_id)
     
-    # ================ ЗАГРУЗКА ================
     def get_ydl_opts(self, format_type='audio', quality='best'):
         """Опции yt-dlp"""
         base_opts = {
@@ -752,11 +685,14 @@ class YouTubeBot:
             'retries': 10,
             'fragment_retries': 10,
             'socket_timeout': 60,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'extract_flat': False,
             'ignoreerrors': True,
             'nooverwrites': True,
             'continuedl': True,
+            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
         }
         
         if format_type == 'audio':
@@ -769,7 +705,6 @@ class YouTubeBot:
                 }],
             })
         else:
-            # Видео в лучшем качестве (до 1080p)
             base_opts['format'] = 'best[height<=1080]'
         
         return base_opts
@@ -783,7 +718,6 @@ class YouTubeBot:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 logger.info(f"Получаю информацию: {url}")
                 
-                # Получаем информацию
                 info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
                 
                 if not info:
@@ -883,7 +817,6 @@ class YouTubeBot:
 
 
 # ================ ЗАПУСК ================
-# Глобальная переменная для бота
 bot_instance = None
 
 async def main():
@@ -906,5 +839,3 @@ def run_bot():
 # ЗАПУСКАЕМ БОТА ПРИ ЗАГРУЗКЕ МОДУЛЯ
 bot_thread = threading.Thread(target=run_bot, daemon=True)
 bot_thread.start()
-
-# Flask приложение уже определено выше в начале файла
